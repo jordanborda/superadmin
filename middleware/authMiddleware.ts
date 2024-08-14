@@ -17,10 +17,10 @@ export function withAuth(handler: any) {
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as DecodedToken;
       req.user = decoded;
-
       return handler(req, res);
     } catch (error) {
-      return res.status(401).json({ message: 'Token inválido' });
+      console.error('Error en la autenticación:', error);
+      return res.status(401).json({ message: 'Token inválido', error: error.message });
     }
   };
 }

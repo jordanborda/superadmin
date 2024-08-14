@@ -1,16 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-
-const ClientOnly: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [hasMounted, setHasMounted] = useState(false);
-  useEffect(() => {
-    setHasMounted(true);
-  }, []);
-  if (!hasMounted) {
-    return null;
-  }
-  return <>{children}</>;
-};
+import { useTheme } from 'next-themes';
+import Head from 'next/head';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import { Label } from "../components/ui/label";
+import { Button } from "../components/ui/button";
+import { Switch } from "../components/ui/switch";
+import { Moon, Sun } from "lucide-react";
 
 const AuthPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -19,6 +16,7 @@ const AuthPage: React.FC = () => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const router = useRouter();
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     document.title = `${isLogin ? 'Iniciar Sesión' : 'Crear cuenta'} | Tu Empresa`;
@@ -43,7 +41,7 @@ const AuthPage: React.FC = () => {
       const body = isLogin
         ? JSON.stringify({ email, password })
         : JSON.stringify({ email, password, firstName, lastName });
-  
+
       console.log(`Enviando solicitud a ${endpoint}`);
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -52,7 +50,7 @@ const AuthPage: React.FC = () => {
         },
         body: body,
       });
-  
+
       const data = await response.json();
       
       if (response.ok) {
@@ -64,10 +62,7 @@ const AuthPage: React.FC = () => {
             role: data.user.role
           }));
           
-          alert('Inicio de sesión exitoso');
           console.log('Redirigiendo a /home...');
-          
-          // Usar router.push con una promesa para asegurar la redirección
           await router.push('/home');
           console.log('Redirección completada');
         } else {
@@ -85,135 +80,89 @@ const AuthPage: React.FC = () => {
       alert('Error en la operación. Por favor, intenta de nuevo.');
     }
   };
-  
 
   return (
     <>
-
+      <Head>
         <title>Autenticación | Tu Empresa</title>
         <link rel="icon" href="/favicon.ico" />
-
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <ClientOnly>
-          <div className="sm:mx-auto sm:w-full sm:max-w-md">
-            <img className="mx-auto h-12 w-auto" src="/vercel.svg" alt="Tu Logo" />
-            <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-              {isLogin ? 'Inicia sesión en tu cuenta' : 'Crea una nueva cuenta'}
-            </h2>
-          </div>
-
-          <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-            <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-              <form className="space-y-6" onSubmit={handleSubmit}>
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                    Correo electrónico
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      id="email"
-                      name="email"
-                      type="email"
-                      autoComplete="email"
-                      required
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-black"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                    Contraseña
-                  </label>
-                  <div className="mt-1">
-                    <input
-                      id="password"
-                      name="password"
-                      type="password"
-                      autoComplete="current-password"
-                      required
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-black"
-                    />
-                  </div>
-                </div>
-
-                {!isLogin && (
-                  <>
-                    <div>
-                      <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
-                        Nombre
-                      </label>
-                      <div className="mt-1">
-                        <input
-                          id="firstName"
-                          name="firstName"
-                          type="text"
-                          autoComplete="given-name"
-                          required
-                          value={firstName}
-                          onChange={(e) => setFirstName(e.target.value)}
-                          className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-black"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
-                        Apellido
-                      </label>
-                      <div className="mt-1">
-                        <input
-                          id="lastName"
-                          name="lastName"
-                          type="text"
-                          autoComplete="family-name"
-                          required
-                          value={lastName}
-                          onChange={(e) => setLastName(e.target.value)}
-                          className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-black"
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
-
-                <div>
-                  <button
-                    type="submit"
-                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                  >
-                    {isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
-                  </button>
-                </div>
-              </form>
-
-              <div className="mt-6">
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-300"></div>
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-white text-gray-500">
-                      {isLogin ? '¿Nuevo en nuestra plataforma?' : '¿Ya tienes una cuenta?'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <button
-                    onClick={toggleAuthMode}
-                    className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-indigo-600 bg-white hover:bg-gray-50"
-                  >
-                    {isLogin ? 'Crear una nueva cuenta' : 'Iniciar sesión'}
-                  </button>
-                </div>
+      </Head>
+      <div className="min-h-screen flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8">
+        <div className="absolute top-4 right-4 flex items-center space-x-2">
+          <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+          <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+          <Switch
+            checked={theme === 'dark'}
+            onCheckedChange={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+          />
+        </div>
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold text-center">
+              {isLogin ? 'Iniciar Sesión' : 'Crear Cuenta'}
+            </CardTitle>
+            <CardDescription className="text-center">
+              {isLogin ? 'Ingresa a tu cuenta' : 'Regístrate para comenzar'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Correo electrónico</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="tu@ejemplo.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
               </div>
-            </div>
-          </div>
-        </ClientOnly>
+              <div className="space-y-2">
+                <Label htmlFor="password">Contraseña</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              {!isLogin && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="firstName">Nombre</Label>
+                    <Input
+                      id="firstName"
+                      type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Apellido</Label>
+                    <Input
+                      id="lastName"
+                      type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      required
+                    />
+                  </div>
+                </>
+              )}
+              <Button type="submit" className="w-full">
+                {isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
+              </Button>
+            </form>
+          </CardContent>
+          <CardFooter>
+            <Button variant="link" onClick={toggleAuthMode} className="w-full">
+              {isLogin ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
+            </Button>
+          </CardFooter>
+        </Card>
       </div>
     </>
   );

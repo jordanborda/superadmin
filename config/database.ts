@@ -14,10 +14,12 @@ const config: sql.config = {
 
 export async function getConnection() {
   try {
+    console.log('Intentando conectar a la base de datos...');
     const pool = await sql.connect(config);
+    console.log('Conexión a la base de datos establecida');
     return pool;
   } catch (err) {
     console.error('Error al conectar a la base de datos:', err);
-    throw err;
+    throw new Error(`Error de conexión a la base de datos: ${err.message}`);
   }
 }

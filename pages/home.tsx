@@ -3,8 +3,10 @@ import { useRouter } from 'next/router';
 import Head from 'next/head';
 import Header from './Header';
 import Sidebar from './Sidebar';
-import ComponentTabs from '../components/ComponentTabs';
 import AddComponentModal from '../components/AddComponentModal';
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { Button } from "../components/ui/button";
+import { Loader2, PlusCircle } from "lucide-react";
 
 interface Component {
   id: string;
@@ -29,7 +31,6 @@ const Home: React.FC = () => {
     const checkAuth = () => {
       const token = localStorage.getItem('token');
       const userInfo = localStorage.getItem('userInfo');
-
       if (!token || !userInfo) {
         console.log('No se encontró token o información de usuario, redirigiendo a login...');
         router.push('/');
@@ -38,7 +39,6 @@ const Home: React.FC = () => {
         setIsLoading(false);
       }
     };
-
     checkAuth();
   }, [router]);
 
@@ -56,11 +56,15 @@ const Home: React.FC = () => {
   };
 
   if (isLoading) {
-    return <div>Cargando...</div>;
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="mr-2 h-16 w-16 animate-spin" />
+      </div>
+    );
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-background">
       <Head>
         <title>Dashboard - Mi Aplicación</title>
         <link rel="icon" href="/favicon.ico" />
@@ -68,38 +72,68 @@ const Home: React.FC = () => {
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-200">
-          <div className="container mx-auto px-6 py-8">
-            <h1 className="text-2xl font-semibold text-gray-900 mb-6">
-              Bienvenido, {user?.firstName}
-            </h1>
-            <div className="flex items-center mb-4">
-              <ComponentTabs
-                components={components}
-                activeTab={activeTab}
-                setActiveTab={setActiveTab}
-              />
+        <main className="flex-1 overflow-x-hidden overflow-y-auto p-6">
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Bienvenido, {user?.firstName}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                Tu rol actual es: <span className="font-semibold">{user?.role}</span>
+              </p>
+            </CardContent>
+          </Card>
+
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-bold">Componentes</h2>
               {(user?.role === 'superadmin' || user?.role === 'admin') && (
-                <button
-                  onClick={() => setIsModalOpen(true)}
-                  className="ml-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                >
-                  + Agregar componente
-                </button>
+                <Button onClick={() => setIsModalOpen(true)}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Agregar componente
+                </Button>
               )}
             </div>
-            {activeTab && (
-              <div className="bg-white p-6 rounded-lg shadow">
-                {components.find(c => c.id === activeTab)?.content || 'Contenido del componente'}
+            
+            {components.length > 0 ? (
+              <div>
+                <div className="flex space-x-2 mb-4 overflow-x-auto pb-2">
+                  {components.map((component) => (
+                    <Button
+                      key={component.id}
+                      variant={activeTab === component.id ? "default" : "outline"}
+                      onClick={() => setActiveTab(component.id)}
+                      className="whitespace-nowrap"
+                    >
+                      {component.name}
+                    </Button>
+                  ))}
+                </div>
+                {activeTab && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>{components.find(c => c.id === activeTab)?.name}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      {components.find(c => c.id === activeTab)?.content}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
+            ) : (
+              <Card>
+                <CardContent className="text-center py-6">
+                  <p className="text-muted-foreground">No hay componentes añadidos aún.</p>
+                </CardContent>
+              </Card>
             )}
-            <AddComponentModal
-              isOpen={isModalOpen}
-              onClose={() => setIsModalOpen(false)}
-              onAdd={handleAddComponent}
-              generateId={generateComponentId}
-            />
           </div>
+
+          <AddComponentModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            onAdd={handleAddComponent}
+            generateId={generateComponentId}
+          />
         </main>
       </div>
     </div>
