@@ -7,11 +7,14 @@ import AddComponentModal from '../components/AddComponentModal';
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Loader2, PlusCircle } from "lucide-react";
+import { Badge } from "../components/ui/badge";
 
 interface Component {
   id: string;
   name: string;
-  content: string;
+  children: Component[];
+  isPartida: boolean;
+  color: string;
 }
 
 interface User {
@@ -42,17 +45,54 @@ const Home: React.FC = () => {
     checkAuth();
   }, [router]);
 
-  const handleAddComponent = (newComponent: Component) => {
-    setComponents([...components, newComponent]);
-    setActiveTab(newComponent.id);
+  const handleAddComponent = (newComponents: Component[]) => {
+    setComponents(prevComponents => {
+      // Función para actualizar o añadir componentes recursivamente
+      const updateComponents = (existingComps: Component[], newComps: Component[]): Component[] => {
+        return newComps.map(newComp => {
+          const existingComp = existingComps.find(ec => ec.id === newComp.id);
+          if (existingComp) {
+            // Si el componente ya existe, actualiza sus propiedades y sus hijos
+            return {
+              ...existingComp,
+              name: newComp.name,
+              isPartida: newComp.isPartida,
+              color: newComp.color,
+              children: updateComponents(existingComp.children, newComp.children)
+            };
+          } else {
+            // Si es un nuevo componente, añádelo
+            return newComp;
+          }
+        });
+      };
+
+      // Actualiza los componentes existentes y añade los nuevos
+      return updateComponents(prevComponents, newComponents);
+    });
+
     setIsModalOpen(false);
   };
 
-  const generateComponentId = () => {
-    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    const letter = alphabet[components.length % alphabet.length];
-    const number = Math.floor(components.length / alphabet.length) + 1;
-    return `${letter}${number}`;
+  const parentComponents = components.filter((component) => !component.id.includes('.'));
+
+  const renderComponentRows = (component: Component): JSX.Element[] => {
+    const rows: JSX.Element[] = [
+      <tr key={component.id}>
+        <td className="border px-4 py-2">
+          <Badge variant="outline" className={`${component.color} text-white`}>
+            {component.id}
+          </Badge>
+        </td>
+        <td className="border px-4 py-2 uppercase">{component.name}</td>
+      </tr>
+    ];
+
+    component.children.forEach(child => {
+      rows.push(...renderComponentRows(child));
+    });
+
+    return rows;
   };
 
   if (isLoading) {
@@ -93,47 +133,58 @@ const Home: React.FC = () => {
                 </Button>
               )}
             </div>
-            
-            {components.length > 0 ? (
-              <div>
-                <div className="flex space-x-2 mb-4 overflow-x-auto pb-2">
-                  {components.map((component) => (
-                    <Button
-                      key={component.id}
-                      variant={activeTab === component.id ? "default" : "outline"}
-                      onClick={() => setActiveTab(component.id)}
-                      className="whitespace-nowrap"
-                    >
-                      {component.name}
-                    </Button>
-                  ))}
-                </div>
-                {activeTab && (
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>{components.find(c => c.id === activeTab)?.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {components.find(c => c.id === activeTab)?.content}
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            ) : (
+
+            {parentComponents.length > 0 ? (
+          <div>
+            <div className="flex space-x-2 mb-4 overflow-x-auto pb-2">
+              {parentComponents.map((component) => (
+                <Button
+                  key={component.id}
+                  variant={activeTab === component.id ? "default" : "outline"}
+                  onClick={() => setActiveTab(component.id)}
+                  className="whitespace-nowrap"
+                >
+                  {component.name.toUpperCase() || component.id}
+                </Button>
+              ))}
+            </div>
+            {activeTab && (
               <Card>
-                <CardContent className="text-center py-6">
-                  <p className="text-muted-foreground">No hay componentes añadidos aún.</p>
+                <CardHeader>
+                  <CardTitle>{components.find(c => c.id === activeTab)?.name.toUpperCase() || activeTab}</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <table className="w-full text-left table-auto">
+                    <thead>
+                      <tr>
+                        <th className="px-4 py-2">ID</th>
+                        <th className="px-4 py-2">Descripción</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {components
+                        .find((c) => c.id === activeTab)
+                        ?.children.flatMap(child => renderComponentRows(child))}
+                    </tbody>
+                  </table>
                 </CardContent>
               </Card>
             )}
           </div>
-
-          <AddComponentModal
-            isOpen={isModalOpen}
-            onClose={() => setIsModalOpen(false)}
-            onAdd={handleAddComponent}
-            generateId={generateComponentId}
-          />
+        ) : (
+          <Card>
+            <CardContent className="text-center py-6">
+              <p className="text-muted-foreground">No hay componentes añadidos aún.</p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+      <AddComponentModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onAdd={handleAddComponent}
+        existingComponents={components}
+      />
         </main>
       </div>
     </div>
