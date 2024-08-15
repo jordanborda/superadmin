@@ -4,9 +4,12 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChevronDown, Trash2, Tag, Search } from "lucide-react";
+import { ChevronDown, Trash2, Tag, Search, GripVertical } from "lucide-react";
 import { suggestionsDatabase } from '../utils/suggestionsDatabase';
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface Component {
   id: string;
@@ -33,6 +36,32 @@ const colors = [
   'bg-indigo-500',
   'bg-teal-500',
 ];
+
+const SortableTreeItem = ({ component, children }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: component.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-start">
+      <div {...attributes} {...listeners} className="cursor-grab mr-1 mt-1">
+        <GripVertical className="h-5 w-5 text-gray-400" />
+      </div>
+      <div className="flex-grow">
+        {children}
+      </div>
+    </div>
+  );
+};
 
 const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, onAdd, existingComponents }) => {
   const [components, setComponents] = useState<Component[]>([]);
@@ -259,6 +288,13 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
     const element = document.getElementById(componentId);
     if (element && contentRef.current) {
       element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => {
+        const rect = element.getBoundingClientRect();
+        const containerRect = contentRef.current.getBoundingClientRect();
+        if (rect.top < containerRect.top || rect.bottom > containerRect.bottom) {
+          contentRef.current.scrollTop = element.offsetTop - containerRect.height / 2 + rect.height / 2;
+        }
+      }, 100);
     }
   };
 
@@ -287,72 +323,123 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
     );
   };
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      setComponents(existingComponents);
+    }
+  }, [isOpen, existingComponents]);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (active.id !== over?.id) {
+      setComponents((prevComponents) => {
+        const flattenComponents = (comps: Component[]): Component[] => {
+          return comps.reduce((acc, comp) => {
+            return [...acc, comp, ...flattenComponents(comp.children)];
+          }, [] as Component[]);
+        };
+
+        const flatComponents = flattenComponents(prevComponents);
+        const oldIndex = flatComponents.findIndex((item) => item.id === active.id);
+        const newIndex = flatComponents.findIndex((item) => item.id === over?.id);
+
+        const newOrder = arrayMove(flatComponents, oldIndex, newIndex);
+
+        const rebuildTree = (items: Component[], parent: Component | null = null): Component[] => {
+          return items
+            .filter(item => {
+              if (!parent) return !item.id.includes('.');
+              return item.id.startsWith(parent.id + '.') && item.id.split('.').length === parent.id.split('.').length + 1;
+            })
+            .map(item => ({
+              ...item,
+              children: rebuildTree(items, item)
+            }));
+        };
+
+        return rebuildTree(newOrder);
+      });
+    }
+  };
+
   
   const renderTreeItem = (component: Component, depth = 0) => (
-    <div 
-      key={component.id} 
-      id={component.id}
-      className={`ml-4 mt-2 ${highlightedComponent === component.id ? 'animate-pulse bg-yellow-200 dark:bg-yellow-800' : ''}`}
-    >
-      <div className="flex items-center space-x-2">
-        <Badge variant="outline" className={`${component.color} text-white`}>
-          {component.id}
-        </Badge>
-        <div className="relative flex-grow">
-          <Input
-            value={component.name}
-            onChange={(e) => handleComponentNameChange(component.id, e.target.value)}
-            placeholder="NOMBRE DEL COMPONENTE"
-            className="uppercase w-full"
-          />
-          {suggestions.length > 0 && activeComponentId === component.id && (
-            <ul className="absolute z-10 w-full bg-gray-800 border border-gray-700 mt-1 max-h-40 overflow-auto rounded-md shadow-lg">
-              {suggestions.map((suggestion, index) => (
-                <li
-                  key={index}
-                  className="px-3 py-1 hover:bg-gray-700 cursor-pointer text-white text-sm"
-                  onClick={() => applySuggestion(component.id, suggestion)}
-                >
-                  {suggestion}
-                </li>
-              ))}
-            </ul>
+    <SortableTreeItem key={component.id} component={component}>
+      <div id={component.id} className={`mt-2 w-full ${highlightedComponent === component.id ? 'animate-pulse bg-yellow-200 dark:bg-yellow-800' : ''}`}>
+        <div className="flex items-center space-x-2">
+          <Badge variant="outline" className={`${component.color} text-white`}>
+            {component.id}
+          </Badge>
+          <div className="relative flex-grow">
+            <Input
+              value={component.name}
+              onChange={(e) => handleComponentNameChange(component.id, e.target.value)}
+              placeholder="NOMBRE DEL COMPONENTE"
+              className="uppercase w-full"
+            />
+            {suggestions.length > 0 && activeComponentId === component.id && (
+              <ul className="absolute z-20 w-full bg-gray-800 border border-gray-700 mt-1 max-h-40 overflow-auto rounded-md shadow-lg">
+                {suggestions.map((suggestion, index) => (
+                  <li
+                    key={index}
+                    className="px-3 py-1 hover:bg-gray-700 cursor-pointer text-white text-sm"
+                    onClick={() => applySuggestion(component.id, suggestion)}
+                  >
+                    {suggestion}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          {!component.isPartida && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => addComponent(component.id)}
+              className="p-1"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </Button>
           )}
-        </div>
-        {!component.isPartida && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => addComponent(component.id)}
+            onClick={() => setShowDeleteConfirmation(component.id)}
             className="p-1"
           >
-            <ChevronDown className="h-4 w-4" />
+            <Trash2 className="h-4 w-4" />
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowDeleteConfirmation(component.id)}
-          className="p-1"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => togglePartida(component.id)}
-          className={`p-1 ${component.isPartida ? 'bg-orange-500 text-white' : ''}`}
-        >
-          <Tag className="h-4 w-4" />
-        </Button>
-        {component.isPartida && (
-          <Badge variant="secondary" className="bg-orange-500 text-white">
-            Partida
-          </Badge>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => togglePartida(component.id)}
+            className={`p-1 ${component.isPartida ? 'bg-orange-500 text-white' : ''}`}
+          >
+            <Tag className="h-4 w-4" />
+          </Button>
+          {component.isPartida && (
+            <Badge variant="secondary" className="bg-orange-500 text-white">
+              Partida
+            </Badge>
+          )}
+        </div>
+        {component.children.length > 0 && (
+          <div className="ml-6 mt-2">
+            <SortableContext items={component.children.map(c => c.id)} strategy={verticalListSortingStrategy}>
+              {component.children.map((child) => renderTreeItem(child, depth + 1))}
+            </SortableContext>
+          </div>
         )}
       </div>
-      {component.children.map((child) => renderTreeItem(child, depth + 1))}
-    </div>
+    </SortableTreeItem>
   );
 
   return (
@@ -397,7 +484,7 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
                 <Search className="h-4 w-4" />
               </Button>
             </div>
-          </DialogHeader>
+            </DialogHeader>
           {showSearchAlert && (
             <Alert>
               <AlertDescription>
@@ -405,9 +492,20 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
               </AlertDescription>
             </Alert>
           )}
-          <div ref={contentRef} className="py-4 min-h-[10rem] max-h-[60vh] overflow-y-auto">
-            {components.map((component) => renderTreeItem(component))}
-          </div>
+         <DndContext 
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext 
+              items={components.map(c => c.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div ref={contentRef} className="py-4 min-h-[10rem] max-h-[60vh] overflow-y-auto">
+                {components.map((component) => renderTreeItem(component))}
+              </div>
+            </SortableContext>
+          </DndContext>
           <DialogFooter>
             <Button variant="outline" onClick={handleClose}>
               Cancelar
