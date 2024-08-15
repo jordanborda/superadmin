@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardHeader, CardContent, CardTitle } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Label } from "@/components/ui/label"; 
 import { Button } from "@/components/ui/button";
-import { Plus } from 'lucide-react';
+import { Plus, Save } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { suggestionsTable } from '@/utils/suggestionsTable';
-
+import { useToast } from "@/components/ui/use-toast";
 
 interface Component {
   id: string;
@@ -36,9 +36,9 @@ interface RowData {
 }
 
 const nidColors = [
-    'text-blue-500',
-    'text-yellow-500',
-  ];
+  'font-bold text-blue-500',
+  'font-bold text-yellow-500',
+];
 
 const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
   const [unidadMedida, setUnidadMedida] = useState<string>('');
@@ -48,9 +48,25 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
   const [rows, setRows] = useState<RowData[]>([]);
   const [suggestions, setSuggestions] = useState<{ [key: number]: string }>({});
   const inputRefs = useRef<{ [key: number]: HTMLInputElement }>({});
+  const { toast } = useToast();
 
   useEffect(() => {
     if (selectedComponent) {
+      const storedData = localStorage.getItem(`tablaSheetData_${selectedComponent.id}`);
+      if (storedData) {
+        setRows(JSON.parse(storedData));
+      } else {
+        setRows([]);
+      }
+      const storedUnidadMedida = localStorage.getItem(`unidadMedida_${selectedComponent.id}`) || '';
+      setUnidadMedida(storedUnidadMedida);
+      const storedRendimiento = Number(localStorage.getItem(`rendimiento_${selectedComponent.id}`) || 0);
+      setRendimiento(storedRendimiento);
+      const storedRendimientoDias = Number(localStorage.getItem(`rendimientoDias_${selectedComponent.id}`) || 0);  
+      setRendimientoDias(storedRendimientoDias);
+      const storedHoras = Number(localStorage.getItem(`horas_${selectedComponent.id}`) || 0);
+      setHoras(storedHoras);
+    } else {
       setRows([]);
       setUnidadMedida('');
       setRendimiento(0);
@@ -59,6 +75,34 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
     }
   }, [selectedComponent]);
 
+  useEffect(() => {
+    if (selectedComponent) {
+      localStorage.setItem(`tablaSheetData_${selectedComponent.id}`, JSON.stringify(rows));
+      localStorage.setItem(`unidadMedida_${selectedComponent.id}`, unidadMedida);
+      localStorage.setItem(`rendimiento_${selectedComponent.id}`, String(rendimiento));
+      localStorage.setItem(`rendimientoDias_${selectedComponent.id}`, String(rendimientoDias));
+      localStorage.setItem(`horas_${selectedComponent.id}`, String(horas));
+    }
+  }, [selectedComponent, rows, unidadMedida, rendimiento, rendimientoDias, horas]);
+
+  const calculateTotals = useMemo(() => {
+    const totals: { [key: number]: number } = {};
+    rows.forEach(row => {
+      if (row.type === 'item') {
+        totals[row.parentId!] = (totals[row.parentId!] || 0) + row.total;
+      }
+    });
+    return totals;
+  }, [rows]);
+
+  const totalGeneral = useMemo(() => {
+    return Object.values(calculateTotals).reduce((sum, value) => sum + value, 0);
+  }, [calculateTotals]);
+
+  const totalCompleto = useMemo(() => {
+    return rows.reduce((sum, row) => sum + (row.type === 'title' ? calculateTotals[row.id] || 0 : 0), 0);
+  }, [rows, calculateTotals]);
+
   const calculateRowTotal = (cantidad: string, precio: string, depreciacion: string) => {
     const cantidadNum = parseFloat(cantidad) || 0;
     const precioNum = parseFloat(precio) || 0;
@@ -66,8 +110,6 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
     const subtotal = cantidadNum * precioNum;
     return subtotal - (subtotal * (depreciacionNum / 100));
   };
-
-
 
   const generateNID = (parentNID: string | null, index: number) => {
     const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -115,13 +157,12 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
       cantidad: '',
       depreciacion: '',
       precio: '',
-      total: 0
+      total: 0  
     };
 
-    // Find the index to insert the new item
     const parentIndex = rows.findIndex(r => r.id === parentId);
     const insertIndex = rows.findIndex((r, index) => 
-      index > parentIndex && (r.type === 'title' || (r.type === 'item' && r.parentId !== parentId))
+      index > parentIndex && (r.type === 'title' || (r.type === 'item' && r.parentId !== parentId))  
     );
 
     const newRows = [
@@ -131,54 +172,6 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
     ];
 
     setRows(newRows);
-  };
-
-  const calculateTotals = useMemo(() => {
-    const totals: { [key: number]: number } = {};
-    rows.forEach(row => {
-      if (row.type === 'item') {
-        totals[row.parentId!] = (totals[row.parentId!] || 0) + row.total;
-      }
-    });
-    return totals;
-  }, [rows]);
-
-  const totalGeneral = useMemo(() => {
-    return Object.values(calculateTotals).reduce((sum, value) => sum + value, 0);
-  }, [calculateTotals]);
-
-  const exportToExcel = () => {
-    const worksheet = XLSX.utils.json_to_sheet(rows.map(row => ({
-      NID: row.nid,
-      Tipo: row.type,
-      Descripción: row.descripcion,
-      'Unidad de Medida': row.unidadMedida,
-      Recursos: row.recursos,
-      Cantidad: row.cantidad,
-      'Depreciación (%)': row.depreciacion,
-      Precio: row.precio,
-      Total: row.total
-    })));
-
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Metrado");
-
-    XLSX.writeFile(workbook, `Metrado_${selectedComponent?.name || 'Componente'}.xlsx`);
-  };
-
-  if (!selectedComponent) {
-    return (
-      <Card className="h-full">
-        <CardContent className="h-full flex items-center justify-center">
-          <p className="text-center text-gray-500">Selecciona un componente hoja para ver sus detalles.</p>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const getNIDColor = (nid: string) => {
-    const depth = nid.split('.').length - 1;
-    return nidColors[depth % nidColors.length];
   };
 
   const handleInputChange = (rowId: number, field: keyof RowData, value: string) => {
@@ -219,7 +212,7 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
         );
 
         setSuggestions(prev => ({
-          ...prev,
+          ...prev,  
           [rowId]: matchingSuggestion || ''
         }));
       }
@@ -236,7 +229,7 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
     if (suggestion) {
       setRows(prevRows => 
         prevRows.map(row => 
-          row.id === rowId ? { ...row, descripcion: suggestion } : row
+          row.id === rowId ? { ...row, descripcion: suggestion } : row  
         )
       );
       setSuggestions(prev => ({
@@ -245,7 +238,41 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
       }));
     }
   };
-  
+
+  const getNIDColor = (nid: string) => {
+    const depth = nid.split('.').length - 1;
+    return nidColors[depth % nidColors.length];
+  };
+
+  const exportToExcel = () => {
+    const worksheet = XLSX.utils.json_to_sheet(rows.map(row => ({
+      NID: row.nid,
+      Tipo: row.type,
+      Descripción: row.descripcion,
+      'Unidad de Medida': row.unidadMedida,
+      Recursos: row.recursos,
+      Cantidad: row.cantidad,
+      'Depreciación (%)': row.depreciacion,
+      Precio: row.precio,
+      Total: row.total
+    })));
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Metrado");
+
+    XLSX.writeFile(workbook, `Metrado_${selectedComponent?.name || 'Componente'}.xlsx`);
+  };
+
+  if (!selectedComponent) {
+    return (
+      <Card className="h-full">
+        <CardContent className="h-full flex items-center justify-center">
+          <p className="text-center text-gray-500">Selecciona un componente hoja para ver sus detalles.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card className="h-full flex flex-col">
       <CardHeader className="py-3">
@@ -261,7 +288,7 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
               Agregar Título
             </Button>
             <Button variant="outline" size="sm" onClick={exportToExcel}>
-              Exportar a Excel
+              Exportar a Excel  
             </Button>
           </div>
         </CardTitle>
@@ -275,7 +302,7 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
               value={unidadMedida} 
               onChange={(e) => setUnidadMedida(e.target.value)}
               className="h-8 text-sm"
-            />
+            />  
           </div>
           <div>
             <Label htmlFor="rendimiento" className="text-xs">Rendimiento</Label>
@@ -284,7 +311,7 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
               type="number" 
               value={rendimiento} 
               onChange={(e) => setRendimiento(Number(e.target.value))}
-              className="h-8 text-sm"
+              className="h-8 text-sm"  
             />
           </div>
           <div>
@@ -303,18 +330,18 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
               id="horas" 
               type="number" 
               value={horas} 
-              onChange={(e) => setHoras(Number(e.target.value))}
+              onChange={(e) => setHoras(Number(e.target.value))}  
               className="h-8 text-sm"
             />
           </div>
         </div>
         
-        <div className="flex-grow overflow-auto relative"> 
+        <div className="flex-grow overflow-auto relative">
           <Table>
             <TableHeader className="sticky top-0 bg-white dark:bg-gray-950 z-20">
               <TableRow className="border-b border-gray-200 dark:border-gray-700">
                 <TableHead className="py-2">NID</TableHead>
-                <TableHead className="py-2 w-1/3">Descripción</TableHead>
+                <TableHead className="py-2 w-1/3">Descripción</TableHead>  
                 <TableHead className="py-2">Unidad</TableHead>
                 <TableHead className="py-2">Recursos</TableHead>
                 <TableHead className="py-2 text-right">Cantidad</TableHead>
@@ -428,6 +455,16 @@ const TablaSheet: React.FC<TablaSheetProps> = ({ selectedComponent }) => {
                 </TableRow>
               ))}
             </TableBody>
+            <TableFooter>
+            <TableRow>
+                <TableCell colSpan={7} className="font-medium text-right">
+                Costo unitario por {unidadMedida || 'unidad'}:
+                </TableCell>
+                <TableCell className="text-right font-bold text-xl text-green-600">
+                S/. {totalCompleto.toFixed(2)}
+                </TableCell>
+            </TableRow>
+            </TableFooter>
           </Table>
         </div>
       </CardContent>
