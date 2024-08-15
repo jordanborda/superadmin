@@ -38,7 +38,7 @@ const Sidebar: React.FC = () => {
           {isOpen && (
             <ul className="pl-8 mt-2 space-y-2">
               <li>
-                <Link href="/metrado-diario">
+                <Link href="/procesos-fisicos/metrado-diario">
                   <Button variant="link" className="text-white flex items-center hover:text-yellow-500">
                     <FaChartBar className="mr-2 bg-white text-gray-900 rounded-full p-1" size={20} />
                     Metrado Diario

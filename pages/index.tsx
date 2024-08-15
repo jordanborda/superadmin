@@ -8,6 +8,7 @@ import { Label } from "../components/ui/label";
 import { Button } from "../components/ui/button";
 import { Switch } from "../components/ui/switch";
 import { Moon, Sun } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 
 const AuthPage: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -15,8 +16,10 @@ const AuthPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
   const { theme, setTheme } = useTheme();
+  const { toast } = useToast();
 
   useEffect(() => {
     document.title = `${isLogin ? 'Iniciar Sesión' : 'Crear cuenta'} | Tu Empresa`;
@@ -36,6 +39,7 @@ const AuthPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     try {
       const endpoint = isLogin ? '/api/login' : '/api/register';
       const body = isLogin
@@ -67,17 +71,31 @@ const AuthPage: React.FC = () => {
           console.log('Redirección completada');
         } else {
           console.log('Registro exitoso');
-          alert('Usuario registrado exitosamente');
+          toast({
+            title: "Registro exitoso",
+            description: "Usuario registrado correctamente",
+            variant: "success",
+          });
           resetForm();
           setIsLogin(true);
         }
       } else {
         console.error('Error en la respuesta:', data.message);
-        alert(data.message || 'Error en la operación');
+        toast({
+          title: "Error",
+          description: data.message || 'Error en la operación',
+          variant: "destructive",
+        });
       }
     } catch (error) {
       console.error('Error en la solicitud:', error);
-      alert('Error en la operación. Por favor, intenta de nuevo.');
+      toast({
+        title: "Error",
+        description: 'Error en la operación. Por favor, intenta de nuevo.',
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -156,9 +174,9 @@ const AuthPage: React.FC = () => {
                 {isLogin ? 'Iniciar sesión' : 'Crear cuenta'}
               </Button>
             </form>
-          </CardContent>
+            </CardContent>
           <CardFooter>
-            <Button variant="link" onClick={toggleAuthMode} className="w-full">
+            <Button variant="link" onClick={toggleAuthMode} className="w-full" disabled={isLoading}>
               {isLogin ? '¿No tienes cuenta? Regístrate' : '¿Ya tienes cuenta? Inicia sesión'}
             </Button>
           </CardFooter>

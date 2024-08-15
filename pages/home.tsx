@@ -43,16 +43,20 @@ const Home: React.FC = () => {
       }
     };
     checkAuth();
+
+    // Cargar componentes guardados
+    const savedComponents = localStorage.getItem('components');
+    if (savedComponents) {
+      setComponents(JSON.parse(savedComponents));
+    }
   }, [router]);
 
   const handleAddComponent = (newComponents: Component[]) => {
     setComponents(prevComponents => {
-      // Función para actualizar o añadir componentes recursivamente
       const updateComponents = (existingComps: Component[], newComps: Component[]): Component[] => {
         return newComps.map(newComp => {
           const existingComp = existingComps.find(ec => ec.id === newComp.id);
           if (existingComp) {
-            // Si el componente ya existe, actualiza sus propiedades y sus hijos
             return {
               ...existingComp,
               name: newComp.name,
@@ -61,14 +65,15 @@ const Home: React.FC = () => {
               children: updateComponents(existingComp.children, newComp.children)
             };
           } else {
-            // Si es un nuevo componente, añádelo
             return newComp;
           }
         });
       };
 
-      // Actualiza los componentes existentes y añade los nuevos
-      return updateComponents(prevComponents, newComponents);
+      const updatedComponents = updateComponents(prevComponents, newComponents);
+      // Guardar componentes actualizados en localStorage
+      localStorage.setItem('components', JSON.stringify(updatedComponents));
+      return updatedComponents;
     });
 
     setIsModalOpen(false);
@@ -76,20 +81,29 @@ const Home: React.FC = () => {
 
   const parentComponents = components.filter((component) => !component.id.includes('.'));
 
-  const renderComponentRows = (component: Component): JSX.Element[] => {
+  const renderComponentRows = (component: Component, depth = 0): JSX.Element[] => {
     const rows: JSX.Element[] = [
       <tr key={component.id}>
         <td className="border px-4 py-2">
-          <Badge variant="outline" className={`${component.color} text-white`}>
-            {component.id}
-          </Badge>
+          <div className="flex items-center">
+            {depth > 0 && (
+              <div className="mr-2 flex items-center">
+                {[...Array(depth)].map((_, i) => (
+                  <div key={i} className="w-4 h-4 border-l-2 border-b-2 border-gray-300"></div>
+                ))}
+              </div>
+            )}
+            <Badge variant="outline" className={`${component.color} text-white`}>
+              {component.id}
+            </Badge>
+          </div>
         </td>
         <td className="border px-4 py-2 uppercase">{component.name}</td>
       </tr>
     ];
 
     component.children.forEach(child => {
-      rows.push(...renderComponentRows(child));
+      rows.push(...renderComponentRows(child, depth + 1));
     });
 
     return rows;
@@ -135,56 +149,56 @@ const Home: React.FC = () => {
             </div>
 
             {parentComponents.length > 0 ? (
-          <div>
-            <div className="flex space-x-2 mb-4 overflow-x-auto pb-2">
-              {parentComponents.map((component) => (
-                <Button
-                  key={component.id}
-                  variant={activeTab === component.id ? "default" : "outline"}
-                  onClick={() => setActiveTab(component.id)}
-                  className="whitespace-nowrap"
-                >
-                  {component.name.toUpperCase() || component.id}
-                </Button>
-              ))}
-            </div>
-            {activeTab && (
+              <div>
+                <div className="flex space-x-2 mb-4 overflow-x-auto pb-2">
+                  {parentComponents.map((component) => (
+                    <Button
+                      key={component.id}
+                      variant={activeTab === component.id ? "default" : "outline"}
+                      onClick={() => setActiveTab(component.id)}
+                      className="whitespace-nowrap"
+                    >
+                      {component.name.toUpperCase() || component.id}
+                    </Button>
+                  ))}
+                </div>
+                {activeTab && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>{components.find(c => c.id === activeTab)?.name.toUpperCase() || activeTab}</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <table className="w-full text-left table-auto">
+                        <thead>
+                          <tr>
+                            <th className="px-4 py-2">ID</th>
+                            <th className="px-4 py-2">Descripción</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {components
+                            .find((c) => c.id === activeTab)
+                            ?.children.flatMap(child => renderComponentRows(child))}
+                        </tbody>
+                      </table>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            ) : (
               <Card>
-                <CardHeader>
-                  <CardTitle>{components.find(c => c.id === activeTab)?.name.toUpperCase() || activeTab}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <table className="w-full text-left table-auto">
-                    <thead>
-                      <tr>
-                        <th className="px-4 py-2">ID</th>
-                        <th className="px-4 py-2">Descripción</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {components
-                        .find((c) => c.id === activeTab)
-                        ?.children.flatMap(child => renderComponentRows(child))}
-                    </tbody>
-                  </table>
+                <CardContent className="text-center py-6">
+                  <p className="text-muted-foreground">No hay componentes añadidos aún.</p>
                 </CardContent>
               </Card>
             )}
           </div>
-        ) : (
-          <Card>
-            <CardContent className="text-center py-6">
-              <p className="text-muted-foreground">No hay componentes añadidos aún.</p>
-            </CardContent>
-          </Card>
-        )}
-      </div>
-      <AddComponentModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onAdd={handleAddComponent}
-        existingComponents={components}
-      />
+          <AddComponentModal
+            isOpen={isModalOpen}
+            onClose={() => setIsModalOpen(false)}
+            onAdd={handleAddComponent}
+            existingComponents={components}
+          />
         </main>
       </div>
     </div>
