@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ChevronDown, Trash2, Tag, Search, GripVertical } from "lucide-react";
+import { ChevronDown, Trash2, Tag, Search, GripVertical, ChevronRight, Lock, Unlock } from "lucide-react";
 import { suggestionsDatabase } from '../utils/suggestionsDatabase';
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
@@ -15,7 +15,7 @@ interface Component {
   id: string;
   name: string;
   children: Component[];
-  isPartida: boolean;
+  isRegistered: boolean;
   color: string;
 }
 
@@ -52,9 +52,9 @@ const SortableTreeItem = ({ component, children }) => {
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-start">
-      <div {...attributes} {...listeners} className="cursor-grab mr-1 mt-1">
-        <GripVertical className="h-5 w-5 text-gray-400" />
+    <div ref={setNodeRef} style={style} className="flex items-center">
+      <div {...attributes} {...listeners} className="cursor-grab mr-2">
+        <GripVertical className="h-4 w-4 text-gray-400" />
       </div>
       <div className="flex-grow">
         {children}
@@ -75,6 +75,7 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
   const [showSearchAlert, setShowSearchAlert] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const [highlightedComponent, setHighlightedComponent] = useState<string | null>(null);
+  const [collapsedNodes, setCollapsedNodes] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isOpen) {
@@ -185,10 +186,35 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
     setActiveComponentId(null);
   };
   
+  const toggleRegistered = (id: string) => {
+    setComponents(prevComponents => {
+      const updateRegisteredStatus = (components: Component[]): Component[] => {
+        return components.map(comp => {
+          if (comp.id === id) {
+            return { ...comp, isRegistered: !comp.isRegistered };
+          } else if (comp.children.length > 0) {
+            return { ...comp, children: updateRegisteredStatus(comp.children) };
+          }
+          return comp;
+        });
+      };
+      return updateRegisteredStatus(prevComponents);
+    });
+  };
+
   const handleSubmit = () => {
-    onAdd(components);
-    setComponents([]);
-    onClose();
+    const registerAllComponents = (components: Component[]): Component[] => {
+      return components.map(comp => ({
+        ...comp,
+        isRegistered: true,
+        children: registerAllComponents(comp.children)
+      }));
+    };
+    
+    const registeredComponents = registerAllComponents(components);
+    onAdd(registeredComponents);
+    setComponents(registeredComponents);
+    // Don't close the modal here, just update the state
   };
 
   const handleClose = () => {
@@ -336,6 +362,17 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
     }
   }, [isOpen, existingComponents]);
 
+  const reorganizeIds = (components: Component[], parentId: string = ''): Component[] => {
+    return components.map((component, index) => {
+      const newId = parentId ? `${parentId}.${index + 1}` : `${index + 1}`;
+      return {
+        ...component,
+        id: newId,
+        children: reorganizeIds(component.children, newId)
+      };
+    });
+  };
+  
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
@@ -365,15 +402,27 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
             }));
         };
 
-        return rebuildTree(newOrder);
+        const reorderedTree = rebuildTree(newOrder);
+        return reorganizeIds(reorderedTree);
       });
     }
   };
 
+  const toggleCollapse = (id: string) => {
+    setCollapsedNodes(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
   
   const renderTreeItem = (component: Component, depth = 0) => (
     <SortableTreeItem key={component.id} component={component}>
-      <div id={component.id} className={`mt-2 w-full ${highlightedComponent === component.id ? 'animate-pulse bg-yellow-200 dark:bg-yellow-800' : ''}`}>
+      <div id={component.id} className={`mt-2 w-full ${highlightedComponent === component.id ? 'animate-pulse bg-yellow-200 dark:bg-yellow-800' : ''} ${component.isRegistered ? 'opacity-50' : ''}`}>
         <div className="flex items-center space-x-2">
           <Badge variant="outline" className={`${component.color} text-white`}>
             {component.id}
@@ -384,6 +433,7 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
               onChange={(e) => handleComponentNameChange(component.id, e.target.value)}
               placeholder="NOMBRE DEL COMPONENTE"
               className="uppercase w-full"
+              disabled={component.isRegistered}
             />
             {suggestions.length > 0 && activeComponentId === component.id && (
               <ul className="absolute z-20 w-full bg-gray-800 border border-gray-700 mt-1 max-h-40 overflow-auto rounded-md shadow-lg">
@@ -399,39 +449,55 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
               </ul>
             )}
           </div>
-          {!component.isPartida && (
+          {!component.isRegistered && (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => addComponent(component.id)}
+                className="p-1"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowDeleteConfirmation(component.id)}
+                className="p-1"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => toggleRegistered(component.id)}
+            className={`p-1 ${component.isRegistered ? 'bg-blue-500 text-white' : ''}`}
+          >
+            {component.isRegistered ? <Lock className="h-4 w-4" /> : <Unlock className="h-4 w-4" />}
+          </Button>
+          {component.children.length > 0 && (
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => addComponent(component.id)}
+              onClick={() => toggleCollapse(component.id)}
               className="p-1"
             >
-              <ChevronDown className="h-4 w-4" />
+              {collapsedNodes.has(component.id) ? (
+                <ChevronRight className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
             </Button>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowDeleteConfirmation(component.id)}
-            className="p-1"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => togglePartida(component.id)}
-            className={`p-1 ${component.isPartida ? 'bg-orange-500 text-white' : ''}`}
-          >
-            <Tag className="h-4 w-4" />
-          </Button>
-          {component.isPartida && (
-            <Badge variant="secondary" className="bg-orange-500 text-white">
-              Partida
+          {component.isRegistered && (
+            <Badge variant="secondary" className="bg-blue-500 text-white">
+              Registrado
             </Badge>
           )}
         </div>
-        {component.children.length > 0 && (
+        {component.children.length > 0 && !collapsedNodes.has(component.id) && (
           <div className="ml-6 mt-2">
             <SortableContext items={component.children.map(c => c.id)} strategy={verticalListSortingStrategy}>
               {component.children.map((child) => renderTreeItem(child, depth + 1))}
@@ -441,6 +507,7 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
       </div>
     </SortableTreeItem>
   );
+
 
   return (
     <>
@@ -492,7 +559,7 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
               </AlertDescription>
             </Alert>
           )}
-         <DndContext 
+          <DndContext 
             sensors={sensors}
             collisionDetection={closestCenter}
             onDragEnd={handleDragEnd}
@@ -514,7 +581,7 @@ const AddComponentModal: React.FC<AddComponentModalProps> = ({ isOpen, onClose, 
               Agregar Componente
             </Button>
             <Button onClick={handleSubmit}>
-              Guardar
+              Guardar y Registrar
             </Button>
           </DialogFooter>
         </DialogContent>
