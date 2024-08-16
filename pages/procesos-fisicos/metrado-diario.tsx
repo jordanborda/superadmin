@@ -75,10 +75,9 @@ const MetradoDiarioPage: React.FC = () => {
     });
   };
 
-  const handleComponentSelect = (component: Component) => {
-    if (component.children.length === 0) {
-      setSelectedComponent(component);
-    }
+  const handleComponentSelect = (component: Component, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedComponent(component);
   };
 
   const updateComponent = (updatedComponent: Component) => {
@@ -100,33 +99,36 @@ const MetradoDiarioPage: React.FC = () => {
   };
 
   const renderComponent = (component: Component, depth = 0) => (
-    <div 
-      key={component.id} 
-      className={`py-1 ${component.children.length === 0 ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800' : ''}`}
-      onClick={() => handleComponentSelect(component)}
-    >
-      <div className="flex items-center space-x-1 text-sm">
-        <div style={{ width: `${depth * 12}px` }} /> {/* Reduced indentation */}
-        <Badge variant="outline" className={`${component.color} text-white text-xs px-1 py-0`}>
-          {component.id}
-        </Badge>
-        <span className={`flex-grow font-medium truncate ${component.children.length === 0 ? 'text-blue-600 dark:text-blue-400' : ''}`}>
-          {component.name}
-        </span>
-        {component.children.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => toggleCollapse(component.id, e)}
-            className="p-0 h-6 w-6"
-          >
-            {collapsedNodes.has(component.id) ? (
-              <ChevronRight className="h-3 w-3" />
-            ) : (
-              <ChevronDown className="h-3 w-3" />
-            )}
-          </Button>
-        )}
+    <div key={component.id}>
+      <div
+        className={`py-1 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800 ${
+          selectedComponent?.id === component.id ? 'bg-gray-200 dark:bg-gray-700' : ''
+        }`}
+        onClick={(e) => handleComponentSelect(component, e)}
+      >
+        <div className="flex items-center space-x-1 text-sm">
+          <div style={{ width: `${depth * 12}px` }} /> {/* Reduced indentation */}
+          <Badge variant="outline" className={`${component.color} text-white text-xs px-1 py-0`}>
+            {component.id}
+          </Badge>
+          <span className={`flex-grow font-medium truncate ${component.children.length === 0 ? 'text-blue-600 dark:text-blue-400' : ''}`}>
+            {component.name}
+          </span>
+          {component.children.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => toggleCollapse(component.id, e)}
+              className="p-0 h-6 w-6"
+            >
+              {collapsedNodes.has(component.id) ? (
+                <ChevronRight className="h-3 w-3" />
+              ) : (
+                <ChevronDown className="h-3 w-3" />
+              )}
+            </Button>
+          )}
+        </div>
       </div>
       {component.children.length > 0 && !collapsedNodes.has(component.id) && (
         <div>
@@ -157,7 +159,10 @@ const MetradoDiarioPage: React.FC = () => {
 
             {/* Área de contenido (lado derecho) */}
             <div className="w-full sm:w-2/3 lg:w-3/4 h-2/3 sm:h-full overflow-auto p-4">
-              <TablaSheet selectedComponent={selectedComponent} />
+              <TablaSheet 
+                selectedComponent={selectedComponent} 
+                isParentNode={selectedComponent && selectedComponent.children.length > 0}
+              />
             </div>
           </div>
         </main>

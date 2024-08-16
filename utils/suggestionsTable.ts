@@ -1,20 +1,21 @@
 export const suggestionsTable = {
   titles: [
-    'ESTRUCTURAS',
+    'PERSONAL',
     'ARQUITECTURA',
     'INSTALACIONES ELÉCTRICAS',
     'INSTALACIONES SANITARIAS',
     'ACABADOS'
   ],
   items: {
-    'ESTRUCTURAS': [
-      'EXCAVACIÓN',
-      'CIMENTACIÓN',
-      'COLUMNAS',
+    'PERSONAL': [
+      'OPERARIO',
+      'OFICIAL',
+      'PEON',
       'VIGAS',
       'LOSAS',
       'MUROS DE CONTENCIÓN'
     ],
+    
     'ARQUITECTURA': [
       'MUROS',
       'PUERTAS',
